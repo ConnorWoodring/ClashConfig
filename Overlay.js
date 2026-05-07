@@ -1,86 +1,125 @@
 function main(config) {
-  const SETTINGS = { enableAds: false, enableGoogle: true, enableApple: true, enableTelegram: true, enableGlobal: true, enableChina: true, maxRatio: 4.0, checkInterval: 86400 };
-  const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
-  const ADBLOCK_URL = "https://gcore.jsdelivr.net/gh/TG-Twilight/AWAvenue-Ads-Rule@main/Filters/AWAvenue-Ads-Rule-Clash.yaml";
-  // "https://gcore.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblockmihomo.yaml";
-  const LOYAL_BASE = "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/";
-
-  const ratioRegex = /(?:\[(\d+(?:\.\d+)?)\s*(?:x|X|×)\]|(\d+(?:\.\d+)?)\s*(?:x|X|×|倍)|(?:x|X|×|倍)\s*(\d+(?:\.\d+)?))/i;
-  const blackListRegex = /邀请|返利|官方|网址|订阅|购买|续费|剩余|到期|过期|流量|备用|邮箱|客服|联系|工单|倒卖|防止|梯子|tg|发布|重置/i;
-
-  const originalProxies = config.proxies || [];
-  const filteredProxies = originalProxies.filter(p => {
-    if (!p || !p.name || blackListRegex.test(p.name)) return false;
-    if (p.name.indexOf("群") !== -1 && p.name.indexOf("集群") === -1) return false;
-    const match = p.name.match(ratioRegex);
-    return (match ? parseFloat(match[1] || match[2] || match[3]) : 1.0) <= SETTINGS.maxRatio;
-  });
-
-  const proxiesWithNorm = filteredProxies.map(p => ({
-    ...p, __normName: p.name.trim().replace(/\s+/g, '').replace(/[【】[\]（）()]/g, '')
-      .replace(/🇺🇸/g, 'US').replace(/🇯🇵/g, 'JP').replace(/🇸🇬/g, 'SG').replace(/🇭🇰/g, 'HK').replace(/🇹🇼/g, 'TW').replace(/🇰🇷/g, 'KR')
-      .replace(/🇬🇧/g, 'UK').replace(/🇩🇪/g, 'DE').replace(/🇫🇷/g, 'FR').replace(/🇦🇺/g, 'AU').replace(/🇨🇦/g, 'CA')
-  }));
-
+  const SETTINGS = { 
+    maxRatio: 4.0, 
+    cache: 86400, 
+    icon: "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/" 
+  };
+  const LOYAL = "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/";
+  
+  // 1. Define Regions
   const REGIONS = [
-    { name: "香港节点", pattern: "香港|港|HK|HongKong", icon: "Hong_Kong.png" },
-    { name: "台湾节点", pattern: "台湾|台|TW|Taiwan", icon: "Taiwan.png" },
-    { name: "狮城节点", pattern: "新加坡|狮城|SG|Singapore", icon: "Singapore.png" },
-    { name: "日本节点", pattern: "日本|日|JP|Japan", icon: "Japan.png" },
-    { name: "美国节点", pattern: "美国|美|US|USA|UnitedStates", icon: "United_States.png" },
-    { name: "韩国节点", pattern: "韩国|韩|KR|Korea", icon: "South_Korea.png" },
-    { name: "英国节点", pattern: "英国|英|UK|UnitedKingdom", icon: "United_Kingdom.png" },
-    { name: "德国节点", pattern: "德国|德|DE|Germany", icon: "Germany.png" },
-    { name: "法国节点", pattern: "法国|法|FR|France", icon: "France.png" },
-    { name: "澳洲节点", pattern: "澳洲|AU|Australia", icon: "Australia.png" },
-    { name: "加拿大节点", pattern: "加拿大|加|CA|Canada", icon: "Canada.png" }
-  ].map(r => ({ ...r, proxies: proxiesWithNorm.filter(p => new RegExp(r.pattern, 'i').test(p.__normName)).map(p => p.name) })).filter(r => r.proxies.length > 0);
-
-  // Add Uncategorized Region
-  const categorizedNames = new Set(REGIONS.flatMap(r => r.proxies));
-  const otherProxies = proxiesWithNorm.filter(p => !categorizedNames.has(p.name)).map(p => p.name);
-  if (otherProxies.length) REGIONS.push({ name: "其他节点", icon: "Infrastructure.png", proxies: otherProxies });
-
-  const regionNames = REGIONS.map(r => r.name);
-  const proxyGroups = [
-    { name: "节点选择", type: "select", icon: ICON_BASE + "Proxy.png", proxies: [...regionNames, "手动切换", "DIRECT"] },
-    ...(SETTINGS.enableAds ? [{ name: "广告拦截", type: "select", icon: ICON_BASE + "Block.png", proxies: ["REJECT", "DIRECT", "节点选择"] }] : []),
-    ...(SETTINGS.enableGoogle ? [{ name: "谷歌服务", type: "select", icon: ICON_BASE + "Google.png", proxies: ["节点选择", "DIRECT"] }] : []),
-    ...(SETTINGS.enableApple ? [{ name: "苹果服务", type: "select", icon: ICON_BASE + "Apple.png", proxies: ["DIRECT", "节点选择"] }] : []),
-    ...(SETTINGS.enableTelegram ? [{ name: "电报信息", type: "select", icon: ICON_BASE + "Telegram.png", proxies: ["节点选择", "DIRECT"] }] : []),
-    ...(SETTINGS.enableGlobal ? [{ name: "全球代理", type: "select", icon: ICON_BASE + "Global.png", proxies: ["节点选择", "DIRECT", "手动切换"] }] : []),
-    ...(SETTINGS.enableChina ? [{ name: "国内流量", type: "select", icon: ICON_BASE + "China.png", proxies: ["DIRECT", "节点选择"] }] : []),
-    { name: "漏网之鱼", type: "select", icon: ICON_BASE + "Final.png", proxies: ["节点选择", "DIRECT", "手动切换"] },
-    ...REGIONS.map(r => ({ name: r.name, type: "url-test", icon: ICON_BASE + (r.icon || "Proxy.png"), proxies: r.proxies, interval: 300, tolerance: 100 })),
-    { name: "手动切换", type: "select", icon: ICON_BASE + "Available.png", "include-all": true },
-    { name: "GLOBAL", type: "select", icon: ICON_BASE + "Global.png", proxies: ["节点选择", ...regionNames, "DIRECT"] }
+    { name: "香港节点 (HK)", pat: /香港|港|HK|HongKong/i, icon: "Hong_Kong.png" },
+    { name: "台湾节点 (TW)", pat: /台湾|台|TW|Taiwan/i, icon: "Taiwan.png" },
+    { name: "狮城节点 (SG)", pat: /新加坡|狮城|SG|Singapore/i, icon: "Singapore.png" },
+    { name: "日本节点 (JP)", pat: /日本|日|JP|Japan/i, icon: "Japan.png" },
+    { name: "美国节点 (US)", pat: /美国|美|US|USA|UnitedStates/i, icon: "United_States.png" },
+    { name: "韩国节点 (KR)", pat: /韩国|韩|KR|Korea/i, icon: "South_Korea.png" },
+    { name: "英国节点 (UK)", pat: /英国|英|UK|UnitedKingdom/i, icon: "United_Kingdom.png" },
+    { name: "德国节点 (DE)", pat: /德国|德|Germany/i, icon: "Germany.png" }
   ];
 
-  const createP = (name, behavior, url, extra = {}) => ({ [name]: { type: "http", behavior, url, path: `./ruleset/${name}.yaml`, interval: SETTINGS.checkInterval, ...extra } });
-  config["rule-providers"] = {
-    ...createP("applications", "classical", LOYAL_BASE + "applications.txt"),
-    ...createP("private", "domain", LOYAL_BASE + "private.txt"),
-    ...createP("lancidr", "ipcidr", LOYAL_BASE + "lancidr.txt"),
-    ...(SETTINGS.enableAds ? { ...createP("AntiAd", "domain", ADBLOCK_URL, { format: "yaml" }), ...createP("reject", "domain", LOYAL_BASE + "reject.txt") } : {}),
-    ...(SETTINGS.enableApple ? { ...createP("icloud", "domain", LOYAL_BASE + "icloud.txt"), ...createP("apple", "domain", LOYAL_BASE + "apple.txt") } : {}),
-    ...(SETTINGS.enableGoogle ? createP("google", "domain", LOYAL_BASE + "google.txt") : {}),
-    ...(SETTINGS.enableTelegram ? createP("telegramcidr", "ipcidr", LOYAL_BASE + "telegramcidr.txt") : {}),
-    ...(SETTINGS.enableGlobal ? { ...createP("proxy", "domain", LOYAL_BASE + "proxy.txt"), ...createP("gfw", "domain", LOYAL_BASE + "gfw.txt"), ...createP("tld-not-cn", "domain", LOYAL_BASE + "tld-not-cn.txt") } : {}),
-    ...(SETTINGS.enableChina ? { ...createP("direct", "domain", LOYAL_BASE + "direct.txt"), ...createP("cncidr", "ipcidr", LOYAL_BASE + "cncidr.txt") } : {})
+  // 2. Proxy Filtering & Bucket Allocation
+  const bucket = {}, otherProxies = [];
+  (config.proxies || []).forEach(p => {
+    const ratio = p.name.match(/(\d+(?:\.\d+)?)\s*(?:x|X|×|倍)/i);
+    if (/邀请|返利|订阅|流量|到期|重置|tg|发布|会员|配置|网址|密钥/i.test(p.name) || (ratio && parseFloat(ratio[1]) > SETTINGS.maxRatio)) return;
+    
+    const region = REGIONS.find(r => r.pat.test(p.name));
+    if (region) {
+      if (!bucket[region.name]) bucket[region.name] = { icon: region.icon, list: [] };
+      bucket[region.name].list.push(p.name);
+    } else {
+      otherProxies.push(p.name);
+    }
+  });
+  if (otherProxies.length) bucket["其他节点 (Others)"] = { icon: "Global.png", list: otherProxies };
+
+  // 3. Define Rule Sets with Default Options
+  // "PROXY" maps to "节点选择 (Node Selection)"
+  const RULE_MAPPING = {
+    "applications": { name: "应用列表 (Apps)", icon: "Applications.png", default: "DIRECT" },
+    "private":      { name: "私有网络 (Private)", icon: "Private.png", default: "DIRECT" },
+    "reject":       { name: "广告拦截 (Ad Block)", icon: "Block.png", default: "REJECT" },
+    "apple":        { name: "苹果服务 (Apple)", icon: "Apple.png", default: "DIRECT" },
+    "icloud":       { name: "苹果云端 (iCloud)", icon: "iCloud.png", default: "DIRECT" },
+    "google":       { name: "谷歌服务 (Google)", icon: "Google.png", default: "节点选择 (Node Selection)" },
+    "telegramcidr": { name: "电报信息 (Telegram)", icon: "Telegram.png", default: "节点选择 (Node Selection)" },
+    "gfw":          { name: "防火墙名单 (GFW)", icon: "GFW.png", default: "节点选择 (Node Selection)" },
+    "proxy":        { name: "代理域名 (Proxy)", icon: "Proxy.png", default: "节点选择 (Node Selection)" },
+    "tld-not-cn":   { name: "海外域名 (Global TLD)", icon: "Global.png", default: "节点选择 (Node Selection)" },
+    "direct":       { name: "直连域名 (Direct)", icon: "Direct.png", default: "DIRECT" },
+    "lancidr":      { name: "局域网 (LAN)", icon: "Local.png", default: "DIRECT" },
+    "cncidr":       { name: "国内核心 (China IP)", icon: "China.png", default: "DIRECT" }
   };
 
-  config["rules"] = [
-    "RULE-SET,applications,DIRECT", "RULE-SET,private,DIRECT", "RULE-SET,lancidr,DIRECT",
-    ...(SETTINGS.enableAds ? ["RULE-SET,AntiAd,广告拦截", "RULE-SET,reject,广告拦截"] : []),
-    ...(SETTINGS.enableTelegram ? ["RULE-SET,telegramcidr,电报信息"] : []),
-    ...(SETTINGS.enableGoogle ? ["RULE-SET,google,谷歌服务"] : []),
-    ...(SETTINGS.enableApple ? ["RULE-SET,icloud,苹果服务", "RULE-SET,apple,苹果服务"] : []),
-    ...(SETTINGS.enableGlobal ? ["RULE-SET,gfw,全球代理", "RULE-SET,proxy,全球代理", "RULE-SET,tld-not-cn,全球代理"] : []),
-    ...(SETTINGS.enableChina ? ["RULE-SET,direct,国内流量", "RULE-SET,cncidr,国内流量", "GEOIP,CN,国内流量"] : []),
-    "MATCH,漏网之鱼"
+  const ruleKeys = Object.keys(RULE_MAPPING);
+
+  // 4. Build Strategy Groups
+  const regionGroups = Object.keys(bucket).map(name => ({
+    name, type: "url-test", icon: SETTINGS.icon + bucket[name].icon, 
+    proxies: bucket[name].list, interval: 300, tolerance: 100
+  }));
+
+  const regionNames = regionGroups.map(g => g.name);
+  const selectorChoices = ["节点选择 (Node Selection)", "手动切换 (Manual Switch)", "DIRECT"];
+
+  config["proxy-groups"] = [
+    { name: "节点选择 (Node Selection)", type: "select", icon: SETTINGS.icon + "Proxy.png", proxies: [...regionNames, "手动切换 (Manual Switch)", "DIRECT"] },
+    { name: "手动切换 (Manual Switch)", type: "select", icon: SETTINGS.icon + "Available.png", "include-all": true },
+    
+    // Dynamically create groups with your specified defaults
+    ...ruleKeys.map(key => {
+      const config = RULE_MAPPING[key];
+      let proxies = [...selectorChoices];
+      if (key === "reject") proxies.unshift("REJECT");
+      
+      // Move the default choice to the front of the array
+      proxies = [config.default, ...proxies.filter(p => p !== config.default)];
+
+      return {
+        name: config.name,
+        type: "select",
+        icon: SETTINGS.icon + config.icon,
+        proxies: proxies
+      };
+    }),
+
+    ...regionGroups,
+    { name: "漏网之鱼 (Final)", type: "select", icon: SETTINGS.icon + "Final.png", proxies: ["节点选择 (Node Selection)", "手动切换 (Manual Switch)", "DIRECT"] }
   ];
 
-  config["proxy-groups"] = proxyGroups;
-  config.proxies = originalProxies;
+  // 5. Rule Providers
+  config["rule-providers"] = Object.fromEntries(ruleKeys.map(key => {
+    let behavior = "domain";
+    if (key.includes("cidr")) behavior = "ipcidr";
+    else if (key === "applications") behavior = "classical";
+
+    return [key, {
+      type: "http", behavior, url: LOYAL + key + ".txt", path: `./ruleset/${key}.yaml`, interval: SETTINGS.cache
+    }];
+  }));
+
+  // 6. Routing Rules (Ordered based on your reference)
+  config["rules"] = [
+    "DOMAIN,clash.razord.top,DIRECT",
+    "DOMAIN,yacd.haishan.me,DIRECT",
+    "RULE-SET,applications,应用列表 (Apps)",
+    "RULE-SET,private,私有网络 (Private)",
+    "RULE-SET,reject,广告拦截 (Ad Block)",
+    "RULE-SET,icloud,苹果云端 (iCloud)",
+    "RULE-SET,apple,苹果服务 (Apple)",
+    "RULE-SET,google,谷歌服务 (Google)",
+    "RULE-SET,proxy,代理域名 (Proxy)",
+    "RULE-SET,direct,直连域名 (Direct)",
+    "RULE-SET,lancidr,局域网 (LAN)",
+    "RULE-SET,cncidr,国内核心 (China IP)",
+    "RULE-SET,telegramcidr,电报信息 (Telegram)",
+    "RULE-SET,gfw,防火墙名单 (GFW)",
+    "RULE-SET,tld-not-cn,海外域名 (Global TLD)",
+    "GEOIP,LAN,DIRECT",
+    "GEOIP,CN,DIRECT",
+    "MATCH,漏网之鱼 (Final)"
+  ];
+
   return config;
 }
